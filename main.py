@@ -5,11 +5,13 @@ from pygame.locals import *  # 导入常量模块
 import myplane
 import enemy
 import bullet
+import supply
+from random import *
 
 pygame.init()
 pygame.mixer.init()
 
-bg_size = width, hight = 400, 700
+bg_size = width, height = 400, 700
 screen = pygame.display.set_mode(bg_size)
 pygame.display.set_caption("飞机大战")
 background = pygame.image.load("images/background.png").convert()
@@ -68,6 +70,11 @@ def add_big_enemies(group1, group2, num):
         group2.add(e3)
 
 
+def inc_speed(target, inc):
+    for each in target:
+        each.speed += inc
+
+
 def main():
     pygame.mixer.music.play(-1)
 
@@ -89,12 +96,21 @@ def main():
     add_big_enemies(big_enemies, enemies, 2)
 
     clock = pygame.time.Clock()
+
     # 生成普通子弹
     bullet1 = []
     bullet1_index = 0
-    BULLEFT1_NUM = 4
-    for i in range(BULLEFT1_NUM):
+    BULLET1_NUM = 4
+    for i in range(BULLET1_NUM):
         bullet1.append(bullet.Bullet1(me.rect.midtop))
+
+    # 生成超级子弹
+    bullet2 = []
+    bullet2_index = 0
+    BULLET2_NUM = 8
+    for i in range(BULLET2_NUM // 2):
+        bullet2.append(bullet.Bullet2((me.rect.centerx - 33, me.rect.centery)))
+        bullet2.append(bullet.Bullet2((me.rect.centerx + 30, me.rect.centery)))
 
     clock = pygame.time.Clock()
 
@@ -118,6 +134,27 @@ def main():
     paused_rect.left, paused_rect.top = width - paused_rect.width - 10, 10
     paused_image = pause_nor_image
 
+    # 设置难度等级
+    level = 1
+
+    # 设置全屏炸弹
+    bomb_image = pygame.image.load("images/bomb.png").convert_alpha()
+    bomb_rect = bomb_image.get_rect()
+    bomb_font = pygame.font.Font("font/font.ttf", 48)
+    bomb_num = 3
+
+    # 每30s 发放一个补给包
+    bullet_supply = supply.Bullet_Supply(bg_size)
+    bomb_supply = supply.Bomb_Supply(bg_size)
+    SUPPLY_TIME = USEREVENT
+    pygame.time.set_timer(SUPPLY_TIME, 30 * 1000)  # 30 * 1000毫秒
+
+    # 超级子弹定时器
+    DOUBLE_BULLET_TIME = USEREVENT + 1
+
+    # 标志是否使用超级子弹
+    is_double_bullet = False
+
     #  用于切换图片
     switch_image = True
 
@@ -135,6 +172,16 @@ def main():
             elif event.type == MOUSEBUTTONDOWN:
                 if event.button == 1 and paused_rect.collidepoint(event.pos):
                     paused = not paused
+                    if paused:
+                        pygame.time.set_timer(SUPPLY_TIME, 0)
+                        pygame.mixer.music.pause()
+                        pygame.mixer.pause()
+                    else:
+                        pygame.time.set_timer(SUPPLY_TIME, 30 * 1000)
+                        pygame.mixer.music.unpause()
+                        pygame.mixer.unpause()
+
+
             elif event.type == MOUSEMOTION:
                 if paused_rect.collidepoint(event.pos):
                     if paused:
@@ -146,6 +193,68 @@ def main():
                         paused_image = resume_nor_image
                     else:
                         paused_image = pause_nor_image
+            elif event.type == KEYDOWN:
+                if event.key == K_SPACE:
+                    if bomb_num:
+                        bomb_num -= 1
+                        bomb_sound.play()
+                        for each in enemies:
+                            if each.rect.bottom > 0:
+                                each.active = False
+            elif event.type == SUPPLY_TIME:
+                supply_sound.play()
+                if choice([True, False]):
+                    bomb_supply.reset()
+
+                else:
+                    bullet_supply.reset()
+            elif event.type == DOUBLE_BULLET_TIME:
+                is_double_bullet = False
+                pygame.time.set_timer(DOUBLE_BULLET_TIME, 0)
+
+        # 根据用户得分增加难度级别
+        if level == 1 and score > 50000:
+            level = 2
+            upgrade_sound.play()
+            # 增加3架小型敌机、2架中型敌机和1架大型敌机
+            add_small_enemies(small_enemies, enemies, 3)
+            add_mid_enemies(mid_enemies, enemies, 2)
+            add_big_enemies(big_enemies, enemies, 1)
+            # 提升小型敌机的速度
+            inc_speed(small_enemies, 1)
+
+        elif level == 2 and score > 30000:
+            level = 3
+            upgrade_sound.play()
+            # 增加5架小型敌机、3架中型敌机和2架大型敌机
+            add_small_enemies(small_enemies, enemies, 5)
+            add_mid_enemies(mid_enemies, enemies, 3)
+            add_big_enemies(big_enemies, enemies, 2)
+            # 提升小型敌机的速度
+            inc_speed(small_enemies, 1)
+            inc_speed(mid_enemies, 1)
+
+        elif level == 3 and score > 600000:
+            level = 4
+            upgrade_sound.play()
+            # 增加5架小型敌机、3架中型敌机和2架大型敌机
+            add_small_enemies(small_enemies, enemies, 5)
+            add_mid_enemies(mid_enemies, enemies, 3)
+            add_big_enemies(big_enemies, enemies, 2)
+            # 提升小型敌机的速度
+            inc_speed(small_enemies, 1)
+            inc_speed(mid_enemies, 1)
+
+        elif level == 4 and score > 1000000:
+            level = 5
+            upgrade_sound.play()
+            # 增加5架小型敌机、3架中型敌机和2架大型敌机
+            add_small_enemies(small_enemies, enemies, 5)
+            add_mid_enemies(small_enemies, enemies, 3)
+            add_big_enemies(small_enemies, enemies, 2)
+            # 提升小型敌机的速度
+            inc_speed(small_enemies, 1)
+            inc_speed(mid_enemies, 1)
 
         screen.blit(background, (0, 0))
 
@@ -162,13 +271,43 @@ def main():
             if key_pressed[K_d] or key_pressed[K_RIGHT]:
                 me.moveRight()
             screen.blit(background, (0, 0))
+
+            # 绘制全屏炸弹补给并检测是否获得
+            if bomb_supply.active:
+                bomb_supply.move()
+                screen.blit(bomb_supply.image, bomb_supply.rect)
+                if pygame.sprite.collide_mask(bomb_supply, me):
+                    get_bomb_sound.play()
+                    if bomb_num < 3:
+                        bomb_num += 1
+                    bomb_supply.active = False
+
+            # 绘制超级子弹补给并检测是否获得
+            if bullet_supply.active:
+                bullet_supply.move()
+                screen.blit(bullet_supply.image, bullet_supply.rect)
+                if pygame.sprite.collide_mask(bullet_supply, me):
+                    get_bullet_sound.play()
+                    # 发射超级子弹
+                    is_double_bullet = True
+                    pygame.time.set_timer(DOUBLE_BULLET_TIME, 18 * 1000)
+                    bullet_supply.active = False
+
             # 发射子弹
             if not (delay % 10):
-                bullet1[bullet1_index].reset(me.rect.midtop)
-                bullet1_index = (bullet1_index + 1) % BULLEFT1_NUM
+                bullet_sound.play()
+                if is_double_bullet:
+                    bullets = bullet2
+                    bullets[bullet2_index].reset((me.rect.centerx - 33, me.rect.centery))
+                    bullets[bullet2_index + 1].reset((me.rect.centerx + 30, me.rect.centery))
+                    bullet2_index = (bullet2_index + 2) % BULLET2_NUM
+                else:
+                    bullets = bullet1
+                    bullets[bullet1_index].reset(me.rect.midtop)
+                    bullet1_index = (bullet1_index + 1) % BULLET1_NUM
 
             # 检测子弹是否击中敌机
-            for b in bullet1:
+            for b in bullets:
                 if b.active:
                     b.move()
                     screen.blit(b.image, b.rect)
@@ -304,6 +443,13 @@ def main():
                         print("game over")
                         running = False
 
+            # 绘制全屏炸弹数量
+            bomb_text = bomb_font.render("x %d" % bomb_num, True, WHITE)
+            text_rect = bomb_text.get_rect()
+            screen.blit(bomb_image, (10, height - 10 - bomb_rect.height))
+            screen.blit(bomb_text, (20 + bomb_rect.width, height - 5 - text_rect.height))
+
+        # 绘制得分
         score_text = score_font.render("Score: {} ".format(score), True, WHITE)
         screen.blit(score_text, (10, 5))
 
